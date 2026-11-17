@@ -1,0 +1,5 @@
+node_modules/
+web-dev/translator-app/out/
+release-files/
+__pycache__/
+.DS_Store

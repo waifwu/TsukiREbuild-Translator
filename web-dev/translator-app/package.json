@@ -1,0 +1,45 @@
+{
+  "name": "tsukihime-translator",
+  "productName": "Tsukihime Translator",
+  "version": "2026.11.17",
+  "description": "The translator tool of the Tsukihime web port, run on top of the installed game",
+  "homepage": "https://github.com/waifwu/TsukiREbuild-Translator",
+  "repository": "github:waifwu/TsukiREbuild-Translator",
+  "author": "TsukiREbuild",
+  "license": "MIT",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "45.3.0",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "date.arcueid.tsukirebuild.translator",
+    "productName": "Tsukihime Translator",
+    "artifactName": "TsukihimeTranslator-${os}-${arch}.${ext}",
+    "directories": { "output": "out", "buildResources": "build" },
+    "files": ["main.js", "updater.js", "tool-files.json", "package.json"],
+    "extraResources": [
+      { "from": "../../web/server.py", "to": "tool/web/server.py" },
+      { "from": "../tools", "to": "tool/web-dev/tools", "filter": ["dev_server.py", "gamefiles.py", "line_map.py", "translations.py", "build_layer.py", "exchange.py", "build_pt.py", "story-font-cover.json"] },
+      { "from": "../translator", "to": "tool/web-dev/translator", "filter": ["*.html", "*.js", "*.css"] },
+      { "from": "../fit", "to": "tool/web-dev/fit", "filter": ["fit.html", "fit.js", "run-mcp.js"] },
+      { "from": "out/bundled.json", "to": "tool/bundled.json" }
+    ],
+    "electronLanguages": ["en-US", "en"],
+    "publish": null,
+    "win": {
+      "target": [{ "target": "zip", "arch": ["x64"] }],
+      "icon": "build/icon.png",
+      "extraResources": [{ "from": "out/python-win", "to": "python" }]
+    },
+    "mac": {
+      "target": [{ "target": "dir", "arch": ["arm64"] }],
+      "icon": "build/icon-mac.png",
+      "identity": null
+    }
+  }
+}

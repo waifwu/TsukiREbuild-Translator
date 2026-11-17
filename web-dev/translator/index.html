@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Translator</title>
+<!-- The translator tool's editor (web-dev/TRANSLATOR-TOOL-PLAN.md, Stage 2), served by web-dev/tools/dev_server.py at /translator/.
+     It reads the line map and the game's lines from the app the server was started over, and the translation from its translations folder,
+     which is the only thing it writes (POST /translator/api/save). No code of the game runs here, and nothing goes into the game's storage. -->
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/translator/editor.css">
+</head>
+<body>
+<header id="top">
+  <div class="brand">Translator</div>
+  <button id="b-home" type="button" title="How the editor works: five steps to a first line, the window, the buttons, the keys and the marks; and how far the translation has got" aria-pressed="false">Help</button>
+  <div id="lang-name" class="lang-name">loading…</div>
+  <div id="total" class="total"></div>
+  <div class="spacer"></div>
+  <button id="b-preview" type="button" title="The page of the line you are on, in the game's own text box, as you type (Ctrl+Shift+P)">Preview</button>
+  <button id="b-glossary" type="button" title="The agreed translations of names and terms (glossary.json in the translations folder)">Glossary</button>
+  <button id="b-checks" type="button" title="What the checks found in the translation (a build runs the same checks)">Checks</button>
+  <button id="b-search" type="button" title="Search and replace in the whole translation (Ctrl+Shift+F)">Search</button>
+  <div class="menu-wrap">
+    <button id="b-columns" type="button" title="The versions shown beside each line">Columns</button>
+    <div id="columns" class="menu" hidden></div>
+  </div>
+  <button id="b-exchange" type="button" title="The translation out to CSV, PO, XLIFF or deepLuna, and a file of those back in">Exchange</button>
+  <button id="b-language" type="button" title="The language's code, name, row breaks and what it is translated from (language.json)">Language</button>
+  <div id="save-state" class="save-state" title="Lines are saved to the translations folder a moment after you change them (Ctrl+S: now)">…</div>
+</header>
+<div id="banner" class="banner" hidden></div>
+<div id="body">
+  <nav id="side">
+    <div class="side-tools">
+      <input id="scene-filter" type="search" placeholder="Scene name" aria-label="Find a scene by name">
+      <label class="check"><input id="hide-done" type="checkbox"> hide finished</label>
+    </div>
+    <div id="tree"></div>
+  </nav>
+  <div class="split" data-for="side" role="separator" aria-orientation="vertical" title="Drag to make the scene list wider or narrower; double-click for its usual width"></div>
+  <main id="main">
+    <section id="home" class="home" hidden aria-label="Help"></section>
+    <div id="scene-head"></div>
+    <div id="lines" class="lines"></div>
+  </main>
+  <aside id="preview" class="drawer off">
+    <div class="split" data-for="preview" role="separator" aria-orientation="vertical" title="Drag to make this panel wider or narrower; double-click for its usual width"></div>
+    <div class="drawer-head"><strong>The page in the game's text box</strong><button id="preview-close" type="button" class="x" title="Close">×</button></div>
+    <div class="pv-frame" id="pv-frame"><iframe id="fit-frame" title="The page in the game's text box" tabindex="-1" inert></iframe></div>
+    <div id="pv-verdict" class="pv-verdict">Click a line to see its page.</div>
+    <div class="row-opts pv-play"><button id="b-play" type="button" title="Play the game from this page, in the translation as it is saved (a new tab)">▶ Play from here</button><span id="pv-hint" class="hint"></span></div>
+    <div class="row-opts pv-compare"><label for="cmp-lang">Beside it, the same page in</label><select id="cmp-lang" aria-label="The second text box's language"></select><span id="cmp-note" class="hint"></span></div>
+    <div class="pv-frame" id="pv-frame2"><iframe id="fit-frame2" title="The same page in another language" tabindex="-1" inert></iframe></div>
+    <p class="hint pv-about">Laid out by the game's own text box and styles (the fit page): the rows a page takes (12 fit the screen), each choice's width against the widest English one, and in Ciel-sensei's corner whether every letter stays on its balloon. Pictures are not drawn.</p>
+  </aside>
+  <aside id="exchange" class="drawer" hidden>
+    <div class="split" data-for="exchange" role="separator" aria-orientation="vertical" title="Drag to make this panel wider or narrower; double-click for its usual width"></div>
+    <div class="drawer-head"><strong>Exchange</strong><button id="exchange-close" type="button" class="x" title="Close">×</button></div>
+    <div class="ex-part">
+      <h4>Export</h4>
+      <div class="row-opts"><select id="ex-format" aria-label="Format"><option value="csv">CSV (a spreadsheet)</option><option value="po">PO (gettext: Poedit, Weblate)</option>
+        <option value="xliff">XLIFF 1.2 (CAT tools: OmegaT, memoQ, Trados)</option><option value="deepluna">deepLuna's readable format (a zip)</option></select>
+        <select id="ex-scope" aria-label="Which scenes"><option value="all">all scenes</option><option value="route">this route</option><option value="scene">this scene</option></select></div>
+      <div class="row-opts"><label class="check"><input id="ex-all" type="checkbox"> the lines not translated too</label><button id="ex-go" type="button" class="primary">Download</button></div>
+      <p class="hint">Each line with its number, scene, status and note, beside its source line and the English. Italics travel as &lt;i&gt;…&lt;/i&gt; (in XLIFF as tags), and come back as they were.</p>
+    </div>
+    <div class="ex-part">
+      <h4>Import</h4>
+      <div class="row-opts"><input id="im-file" type="file" accept=".csv,.po,.xliff,.xlf,.txt" aria-label="A file to import"></div>
+      <div class="row-opts"><select id="im-format" aria-label="Format"><option value="">format by the file's name</option><option value="csv">CSV</option><option value="po">PO</option><option value="xliff">XLIFF</option><option value="deepluna">deepLuna readable (.txt)</option></select>
+        <select id="im-status" aria-label="Status" title="The status of lines whose file gives none"><option value="draft">as drafts</option><option value="reviewed">as reviewed</option><option value="final">as final</option></select>
+        <label class="check" title="Take the file's line where the folder has another"><input id="im-overwrite" type="checkbox"> over lines already translated</label></div>
+      <div class="row-opts"><button id="im-check" type="button" disabled>Check</button><button id="im-go" type="button" class="primary" disabled>Import</button></div>
+      <p class="hint">Lines are laid on their line numbers (by their source text where a file has none). Check says what would be placed, kept and left, and writes nothing. A deepLuna project folder is imported with web-dev/tools/exchange.py.</p>
+      <div id="im-report" class="im-report"></div>
+    </div>
+  </aside>
+  <aside id="glossary" class="drawer" hidden>
+    <div class="split" data-for="glossary" role="separator" aria-orientation="vertical" title="Drag to make this panel wider or narrower; double-click for its usual width"></div>
+    <div class="drawer-head"><strong>Glossary</strong><button id="glossary-close" type="button" class="x" title="Close">×</button></div>
+    <p class="hint gl-about">A term is found in a line's Japanese or English (or any other column's language: add its code), and its translation is
+      checked for in the line (or another of its forms, "also", for languages that inflect). Kept in the translations folder as glossary.json.</p>
+    <div class="row-opts gl-tools"><button id="gl-add" type="button">Add a term</button><button id="gl-save" type="button" class="primary" disabled>Save the glossary</button>
+      <input id="gl-filter" type="search" placeholder="Find a term" aria-label="Find a term"><span id="gl-sum" class="sum"></span></div>
+    <div id="gl-list" class="results"></div>
+  </aside>
+  <aside id="checks" class="drawer" hidden>
+    <div class="split" data-for="checks" role="separator" aria-orientation="vertical" title="Drag to make this panel wider or narrower; double-click for its usual width"></div>
+    <div class="drawer-head"><strong>Checks</strong><button id="checks-close" type="button" class="x" title="Close">×</button></div>
+    <div class="row-opts ck-tools"><button id="ck-again" type="button" title="Check every line in the folder again, as a build does">Check again</button>
+      <button id="ck-fit" type="button" title="Lay every page that has a translated line out in the game's text box: pages past 12 rows, wide choices, letters off a balloon">Check every page's fit</button>
+      <label class="check"><input id="ck-notes" type="checkbox"> notes</label><span id="ck-sum" class="sum"></span></div>
+    <div id="ck-list" class="results"></div>
+  </aside>
+  <aside id="search" class="drawer" hidden>
+    <div class="split" data-for="search" role="separator" aria-orientation="vertical" title="Drag to make this panel wider or narrower; double-click for its usual width"></div>
+    <div class="drawer-head"><strong>Search the translation</strong><button id="search-close" type="button" class="x" title="Close (Esc)">×</button></div>
+    <div class="search-form">
+      <input id="find" type="search" placeholder="Find" aria-label="Find">
+      <input id="repl" type="text" placeholder="Replace with" aria-label="Replace with">
+      <div class="row-opts">
+        <label class="check" title="Match case"><input id="o-case" type="checkbox"> Aa</label>
+        <label class="check" title="Whole words"><input id="o-word" type="checkbox"> word</label>
+        <label class="check" title="A regular expression ($1 in the replacement)"><input id="o-regex" type="checkbox"> .*</label>
+        <select id="o-in" title="Where to look" aria-label="Where to look"></select>
+        <select id="o-status" title="Lines of one status only" aria-label="Status">
+          <option value="">any status</option><option value="draft">draft</option><option value="reviewed">reviewed</option><option value="final">final</option>
+        </select>
+        <select id="o-scope" title="Which scenes" aria-label="Which scenes">
+          <option value="all">all scenes</option><option value="route">this route</option><option value="scene">this scene</option>
+        </select>
+      </div>
+      <div class="row-opts"><button id="do-find" type="button">Find</button><button id="do-replace" type="button" disabled>Replace the ticked</button><span id="search-sum" class="sum"></span></div>
+    </div>
+    <div id="results" class="results"></div>
+  </aside>
+</div>
+<div id="pop" class="pop" hidden></div>
+<dialog id="lang-dialog" class="sizable">
+  <form method="dialog" id="lang-form">
+    <h3>The language (language.json)</h3>
+    <label>Code <input name="code" pattern="[a-z]{2,3}" required placeholder="xx" size="4"></label>
+    <label>Name <input name="name" placeholder="e.g. Français" size="24"></label>
+    <label>Row breaks <select name="breaks">
+      <option value="none">none: the text box wraps the lines (^ for a row of your own)</option>
+      <option value="deepluna">deepluna: the lines keep deepLuna's 55-cell breaks</option>
+    </select></label>
+    <label>Translated from <select name="from"></select></label>
+    <p class="hint">"Translated from" is what each line you write is checked against: when that version of a line changes later, the line shows as stale.</p>
+    <menu><button value="cancel" type="submit" formnovalidate>Cancel</button><button value="ok" type="submit" class="primary">Save</button></menu>
+  </form>
+</dialog>
+<script type="module" src="/translator/editor.js"></script>
+</body>
+</html>

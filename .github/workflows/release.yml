@@ -1,0 +1,49 @@
+# A release of Tsukihime Translator, made by pushing a tag (git tag v2026.11.18 && git push origin v2026.11.18):
+#   - the tests run;
+#   - the Windows app is built (web-dev/translator-app/build.sh), its bundled.json dated with the tagged commit;
+#   - the release gets the app (TsukihimeTranslator-win-x64.zip, for new users) and the tool's update: update.json and each tool file under its
+#     SHA-256 (web-dev/tools/translator_manifest.py --release), which installed apps read from the latest release to bring themselves up to date.
+# The release is made as a draft with every file attached, then published: an app that reads the latest release finds all of it there.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Test
+        run: node --test web-dev/tests/*.test.mjs
+      - name: The app's version from the tag (v2026.11.18 -> 2026.11.18)
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          if [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then (cd web-dev/translator-app && npm pkg set version="$v"); fi
+      - name: Build the Windows app
+        run: TOOL_TIME="$(git log -1 --format=%ct)" web-dev/translator-app/build.sh
+      - name: The tool's update
+        run: python3 web-dev/tools/translator_manifest.py --release release-files --tag "$GITHUB_REF_NAME" --time "$(git log -1 --format=%ct)"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --draft --title "$GITHUB_REF_NAME" --generate-notes \
+            web-dev/translator-app/out/TsukihimeTranslator-win-x64.zip release-files/*
+          gh release edit "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --draft=false --latest

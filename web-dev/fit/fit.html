@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><title>Page fit</title>
+<!-- Page fit (translator tool, Stage 0: web-dev/TRANSLATOR-TOOL-PLAN.md). Served by web-dev/tools/dev_server.py at /fit/.
+     Lays a page of any text.json out in the game's own text box (TextBox, style.css) and measures it: fit.js. -->
+<link rel="stylesheet" href="/style.css">
+<style>
+  html, body { margin: 0; background: #111; overflow: auto; scrollbar-width: none; }
+  #stage { left: 0; top: 0; transform: none; }
+  /* shown whole: the game types and fades these in */
+  body.show #text, body.show #panel, body.show #panel2 { opacity: 1 !important; }
+  body.show :is(#text, .logpage) .ch { opacity: 1; }
+  #fit-meter { position: absolute; visibility: hidden; }
+  #o { position: absolute; left: 0; top: 1090px; width: 1900px; margin: 0; padding: 8px; color: #ddd; font: 14px monospace; white-space: pre-wrap; }
+</style>
+<script>
+  // Nothing here writes to this browser's storage: the game's code saves progress as it starts, and a translator opens this
+  // page over the app that holds their own saves.
+  for (const k of ["setItem", "removeItem", "clear"]) Storage.prototype[k] = function () {};
+  // In a frame (the translator's editor shows a page through it), the page takes no focus: the game's code focuses its buttons as it lays a
+  // page out, which would take the keys from the edit box the translator is typing in.
+  if (window.parent !== window) { HTMLElement.prototype.focus = function () {}; window.focus = function () {}; }
+</script>
+<body class="show">
+<div id="stage">
+  <canvas id="gl" width="1920" height="1080"></canvas>
+  <div id="panel"></div>
+  <div id="text"></div>
+  <div id="choices"></div>
+  <div id="click-mark"></div>
+  <div id="note"></div>
+</div>
+<pre id="o">loading</pre>
+<script type="module" src="/fit/fit.js"></script>
+</body>
+</html>

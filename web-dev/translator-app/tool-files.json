@@ -1,0 +1,25 @@
+{
+ "about": "The translator tool's own files: what the app packs (package.json extraResources), what bundled.json describes, and what a release of the app's repository publishes for its updates (web-dev/tools/translator_manifest.py, updater.js). shell: raise it, and main.js TOOL_SHELL with it, when the tool comes to need something of the app around it that older apps lack (a new Python module, a change to main.js); older apps are then sent to download the app again instead of taking the update.",
+ "shell": 1,
+ "repository": "waifwu/TsukiREbuild-Translator",
+ "files": [
+  "web/server.py",
+  "web-dev/tools/dev_server.py",
+  "web-dev/tools/gamefiles.py",
+  "web-dev/tools/line_map.py",
+  "web-dev/tools/translations.py",
+  "web-dev/tools/build_layer.py",
+  "web-dev/tools/exchange.py",
+  "web-dev/tools/build_pt.py",
+  "web-dev/tools/story-font-cover.json",
+  "web-dev/translator/index.html",
+  "web-dev/translator/editor.css",
+  "web-dev/translator/editor.js",
+  "web-dev/translator/markup.js",
+  "web-dev/translator/model.js",
+  "web-dev/translator/memory.js",
+  "web-dev/fit/fit.html",
+  "web-dev/fit/fit.js",
+  "web-dev/fit/run-mcp.js"
+ ]
+}
