@@ -2,10 +2,14 @@
 
 The translator tool of the Tsukihime web port ([arcueid.date](https://arcueid.date), [TsukiREbuild](https://github.com/waifwu/TsukiREbuild)) as a Windows app. It runs on top of the game's PC build that you have installed. It reads the game's files and never changes them, and keeps your translation in a folder of your own, usually a git repository of your own.
 
+[![Download for Windows (64-bit)](https://img.shields.io/badge/Download-Windows%20(64--bit)-2f5fa7?style=for-the-badge)](https://github.com/waifwu/TsukiREbuild-Translator/releases/latest/download/TsukihimeTranslator-win-x64.zip)
+
+The latest version, as a zip. Every version and what changed in it: [Releases](https://github.com/waifwu/TsukiREbuild-Translator/releases).
+
 ## Download
 
 1. Have the game: the Windows build from arcueid.date (DOWNLOAD), unzipped into a folder of its own (`Tsukihime.exe`, with `resources\www` beside it).
-2. Download `TsukihimeTranslator-win-x64.zip` from the [latest release](https://github.com/waifwu/TsukiREbuild-Translator/releases/latest), unzip it anywhere (next to the game is fine), and run `Tsukihime Translator.exe`.
+2. Download `TsukihimeTranslator-win-x64.zip` (the button above, or the [latest release](https://github.com/waifwu/TsukiREbuild-Translator/releases/latest)), unzip it anywhere (next to the game is fine), and run `Tsukihime Translator.exe`.
    - It is not signed, as the game is not: Windows shows its SmartScreen notice. Choose More info, then Run anyway.
 3. It finds the game by itself, or asks where `Tsukihime.exe` is.
 4. The first time, it asks for your translation's folder. An empty folder starts a new translation.
