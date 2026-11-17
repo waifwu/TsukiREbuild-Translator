@@ -193,3 +193,101 @@ test("GitHub: the latest release's update.json, a release's file by tag and hash
   assert.ok(!g.allowed("https://github.com.example.com/x"));
   assert.ok(!g.allowed("https://example.com/x"));
 });
+
+// ---- the Japanese, fetched from the site when the game has none (translator-app/japanese.js; gamefiles.py reads it as a layer) -------------
+const { Japanese, gameHasJapanese } = require(join(APP, "japanese.js"));
+const md5 = (b) => createHash("md5").update(b).digest("hex");
+// An invented language folder as the site lists it for the apps: a pack of the small files (text.json, a script), its index, a face, index.json,
+// and a movie the translator does not take.
+function jaSite(version = 1) {
+  const text = Buffer.from(JSON.stringify(["", `月が出ている。(${version})`, "猫がいる。"]));
+  const script = Buffer.from(JSON.stringify({ ops: [] }));
+  const pack = Buffer.concat([text, script]);
+  const packName = `ja-${md5(pack).slice(0, 10)}.pack`;
+  const files = new Map([
+    ["ja/index.json", Buffer.from(JSON.stringify({ files: ["text.json", "scripts/104.json", "fonts/Face.ttf", "movie/M.mp4"] }))],
+    ["ja/pack/index.json", Buffer.from(JSON.stringify({ version: 1, packs: [[packName, ["text.json", text.length, "scripts/104.json", script.length]]] }))],
+    [`ja/pack/${packName}`, pack],
+    ["ja/fonts/Face.ttf", Buffer.from("an invented face")],
+    ["ja/movie/M.mp4", Buffer.from("a movie")],
+  ]);
+  const list = Buffer.from([...files].map(([p, b]) => `${md5(b)} ${b.length} ${p}`).join("\n") + "\n");
+  const listPath = `update/lang-ja-${md5(list).slice(0, 12)}.txt`;
+  const site = new Map([["update/app.json", Buffer.from(JSON.stringify({ langs: { ja: { md5: md5(list), size: list.length, path: listPath } } }))], [listPath, list]]);
+  for (const [p, b] of files) site.set(`assets/${p}`, b);
+  return { site, packName, files };
+}
+function siteFetch(release, { fail = false, wrong = null } = {}) {
+  const asked = [];
+  const fetch = async (url) => {
+    const rel = url.slice(ORIGIN.length + 1).split("?")[0];
+    asked.push(rel);
+    if (fail) throw Error("offline");
+    let data = release.site.get(rel);
+    if (data && rel === wrong) data = Buffer.from("not it");
+    return { status: data ? 200 : 404, body: data ? (async function* () { yield data; })() : null };
+  };
+  return { fetch, asked };
+}
+
+test("the Japanese: fetched as the site lists it for the apps, less the movies; kept; brought up to date; a bad file changes nothing", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "japanese-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const one = jaSite(1);
+  let f = siteFetch(one);
+  const jp = new Japanese({ dir, origin: ORIGIN, fetch: f.fetch });
+  const seen = [];
+  const r = await jp.refresh((p) => seen.push(p));
+  assert.equal(r.fetched, 4, "index.json, the pack's index, the pack, the face");
+  assert.ok(!f.asked.includes("assets/ja/movie/M.mp4"), "no movie");
+  assert.ok(existsSync(join(dir, "fetched.json")) && jp.held());
+  assert.deepEqual(seen.at(-1), { done: r.bytes, total: r.bytes });
+  // the same list again: nothing downloaded
+  f = siteFetch(one);
+  assert.deepEqual(await new Japanese({ dir, origin: ORIGIN, fetch: f.fetch }).refresh(), { changed: false, fetched: 0, bytes: 0 });
+  assert.deepEqual(f.asked, ["update/app.json"]);
+  // the site's Japanese rebuilt: a file not what the list says changes nothing ...
+  const two = jaSite(2);
+  await assert.rejects(new Japanese({ dir, origin: ORIGIN, fetch: siteFetch(two, { wrong: `assets/ja/pack/${two.packName}` }).fetch }).refresh(), /not the file the site lists/);
+  assert.ok(jp.held(), "the copy fetched before is still whole");
+  assert.ok(existsSync(join(dir, "assets/ja/pack", one.packName)));
+  // ... the right ones: only what changed, and the old pack gone
+  f = siteFetch(two);
+  const r2 = await new Japanese({ dir, origin: ORIGIN, fetch: f.fetch }).refresh();
+  assert.equal(r2.fetched, 2, "the new pack and its index");
+  assert.ok(!existsSync(join(dir, "assets/ja/pack", one.packName)));
+  assert.ok(existsSync(join(dir, "assets/ja/pack", two.packName)));
+  // no network: an error to the caller, the folder as it was
+  await assert.rejects(new Japanese({ dir, origin: ORIGIN, fetch: siteFetch(two, { fail: true }).fetch }).refresh(), /offline/);
+  assert.ok(jp.held());
+  // the tool reads it as a layer after the game's own: ja/text.json out of the pack, Japanese among the languages
+  if (python) {
+    const www = join(dir, "www");
+    mkdirSync(join(www, "assets"), { recursive: true });
+    writeFileSync(join(www, "index.html"), "<!doctype html>");
+    writeFileSync(join(www, "assets", "text.json"), JSON.stringify(["", "The moon is out.", "A cat."]));
+    const out = execFileSync("python3", ["-I", "-c", `import sys, json; sys.path.insert(0, ${JSON.stringify(join(ROOT, "web-dev/tools"))}); import gamefiles
+g = gamefiles.GameFiles([${JSON.stringify(www)}, ${JSON.stringify(dir)}]); print(json.dumps([g.languages(), json.loads(g.read("ja/text.json"))[1], g.describe()[1][:21]]))`]).toString();
+    assert.deepEqual(JSON.parse(out), [["en", "ja"], "月が出ている。(2)", "fetched from the site"]);
+  }
+});
+
+test("the Japanese is fetched only where the game has none of its own (its www, or the update its data folder plays)", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "japanese-game-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const www = join(dir, "www"), data = join(dir, "data");
+  mkdirSync(join(www, "assets"), { recursive: true });
+  assert.equal(gameHasJapanese(www, data), false);
+  mkdirSync(join(data, "update", "u1", "files", "assets", "ja", "pack"), { recursive: true });
+  writeFileSync(join(data, "update", "state.json"), JSON.stringify({ current: "u1" }));
+  writeFileSync(join(data, "update", "u1", "files", "assets", "ja", "pack", "index.json"), "{}");
+  assert.equal(gameHasJapanese(www, data), true, "chosen in the game: its update has it");
+  rmSync(data, { recursive: true });
+  mkdirSync(join(www, "assets", "ja"), { recursive: true });
+  writeFileSync(join(www, "assets", "ja", "text.json"), "[]");
+  assert.equal(gameHasJapanese(www, data), true, "a game built with it");
+  const main = readFileSync(join(APP, "main.js"), "utf8");
+  assert.match(main, /apps\.push\("--app", www\);\s*if \(useJapanese\) apps\.push\("--app", JAPANESE_DIR\(\)\);/, "after the game's own folders");
+  assert.match(main, /await fetchJapanese\(www\);\s*let port;/, "before the server starts");
+  assert.ok(JSON.parse(readFileSync(join(APP, "package.json"), "utf8")).build.files.includes("japanese.js"));
+});

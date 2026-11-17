@@ -1643,11 +1643,12 @@ function homeHTML() {
     : l?.code ? `<p class="ok">✓ ${esc(l.name || l.code)} (${esc(l.code)}), translated from ${esc(labelOf(l.from || "ja"))}. <button type="button" data-click="b-language">Change</button></p>`
     : `<p><button type="button" class="primary" data-click="b-language">Set the language</button></p>`;
   const play = app.state.play ? "" : ` <span class="soft">(${app.folder ? "This needs a newer app." : "This needs a translation folder."})</span>`;
-  // (the desktop game carries no Japanese until it is chosen once on its LANGUAGE tab, which downloads it)
+  // (the desktop game carries no Japanese until 日本語 is chosen on its LANGUAGE tab; the translator app fetches it from the site as it opens,
+  // translator-app/japanese.js, and has none only when that could not be done yet)
   const hasJa = app.state.languages.includes("ja");
   const beside = hasJa ? "the Japanese and the Tsukihimates English" : "the Tsukihimates English";
-  const noJa = hasJa ? "" : `<p class="soft">The Japanese is not here yet: the game downloads it the first time 日本語 is chosen on its LANGUAGE tab.
-    Do that once in the game, then open the translator again, and the Japanese column is there.</p>`;
+  const noJa = hasJa ? "" : `<p class="soft">The Japanese is not here yet. The app fetches it from arcueid.date as it opens (about 57 MB, once), and
+    could not this time: it tries again the next time it opens. Choosing 日本語 once on the game's LANGUAGE tab gives it too.</p>`;
   const bar = ["b-preview", "b-glossary", "b-checks", "b-search", "b-columns", "b-exchange", "b-language"].map((id) => {
     const b = $(`#${id}`);
     return b ? `<div class="kv"><span><button type="button" data-click="${id}">${esc(b.textContent)}</button></span><span>${esc(b.title)}</span></div>` : "";

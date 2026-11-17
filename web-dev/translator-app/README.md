@@ -40,7 +40,22 @@ Lines are saved into the translation's folder a moment after each change, as one
 4. **When an update fails.** When an update's server does not start, the tool from before it is started. If that one comes up, the update is given up and never offered again. An update whose editor does not come up twice running is given up too.
 5. **A new app.** A new download of the app (another `bundled.json`) drops all updates.
 
-Help → Check for updates and Help → About are in the menu. Nothing but GitHub is reached beyond this computer, and the translation folder is never touched by an update.
+Help → Check for updates and Help → About are in the menu. The translation folder is never touched by an update.
+
+## The Japanese
+
+The Windows game carries no Japanese until 日本語 is chosen on its LANGUAGE tab, which downloads it. The translator wants it from the start: the Japanese column, translation memory and checks against the Japanese, the second text box in Japanese, and the line map's Japanese scripts. So `japanese.js`, called from `main.js` before the server starts:
+
+1. **When the game already has it,** in its `www` or in the update its data folder plays, nothing is fetched.
+2. **Otherwise it reads the site's list.** That is `https://arcueid.date/update/app.json` → `langs.ja`, the list the game's own apps use (`update/lang-ja-<md5>.txt`).
+3. **It brings `%APPDATA%\Tsukihime Translator\japanese\` to that list, without the movies.** The first time that is 21 files, about 57 MB (the 16 packs and their index, the three faces, `index.json`), and a page shows the progress.
+   - Every file is checked against its MD5, and all of it is downloaded before the folder changes.
+   - Files the list no longer names are removed.
+   - `fetched.json`, written last, marks the folder whole.
+4. **The tool's server reads the folder** as one more game folder (`--app`, after the game's own; `gamefiles.py` takes `fetched.json` and `assets/`).
+5. **Without the network,** the copy fetched before is used. With none yet, the editor opens without the Japanese and tries again at the next start.
+
+Beyond this computer the app reaches only GitHub (updates) and arcueid.date (the Japanese), each in a session of its own held to that address.
 
 ## Publishing (the maintainer)
 
@@ -55,7 +70,7 @@ Help → Check for updates and Help → About are in the menu. Nothing but GitHu
 
 ## How it works
 
-- `main.js` (Electron, the desktop game's version 45.3.0) finds the game's page and files (`<game>\resources\www`) and the game app's own data folder (`%APPDATA%\Tsukihime`). The data folder holds the update the game plays and the languages it downloaded, Japanese among them, so the default Japanese column is there once the game has it.
+- `main.js` (Electron, the desktop game's version 45.3.0) finds the game's page and files (`<game>\resources\www`) and the game app's own data folder (`%APPDATA%\Tsukihime`). The data folder holds the update the game plays and the languages it downloaded. Where the game has no Japanese, the app fetches it ("The Japanese" above).
 - It then starts the tool's server: `resources\python\python.exe -I -X utf8 resources\tool\web-dev\tools\dev_server.py <a free port> --app <data folder> --app <www> --translations <folder>`. The Python is python.org's embeddable package (3.15.2, its SHA-256 pinned in `build.sh` and checked at every build).
   - The server listens on this computer only. It is the same one as in the checkout: its writes need the editor's own page and token (`dev_server.py`).
   - `-X utf8` keeps the console in UTF-8 under any Windows code page, so a folder named in Spanish works.
@@ -81,6 +96,10 @@ Help → Check for updates and Help → About are in the menu. Nothing but GitHu
   - it started the server with this Mac's Python and opened the editor;
   - the preview laid a page out, and "Play from here" opened the game in a second window, playing the translated line;
   - quitting stopped the server.
+- **The Japanese, 2026-11-17, on this Mac:** a hidden second copy over a game without Japanese, against a copy of the site's `update/` and `assets/ja/` served on this computer.
+  - First start: 21 files (57 MB) fetched, then the editor had Japanese among its languages, the Japanese column, and the Japanese scripts in the line map.
+  - Second start: nothing fetched.
+  - With the site down: the copy fetched before was used. With none fetched yet, the editor opened in English and said it would try again.
 - **Updates, 2026-11-17, on this Mac:** a hidden second copy of the app (`--user-data-dir`, `--test-answer`), started on an older tool (the editor before Help), against a release folder served on this computer:
   - it found the release, downloaded the 3 changed files, restarted on them on the same port, and confirmed them;
   - started again, it ran the update and found nothing newer;

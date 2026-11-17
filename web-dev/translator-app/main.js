@@ -9,24 +9,29 @@
 //   2. Asks once for the translation's folder (kept in the translator's own repository; an empty folder starts a new translation).
 //   3. Starts the tool's server (web-dev/tools/dev_server.py) with the Python carried inside this app (Windows: python.org's embeddable
 //      package, resources/python), on a free port of this computer only, and opens the editor (/translator/) in a window of its own.
-//   4. Keeps the tool up to date (updater.js): once the editor is up, it looks at the latest release of the app's GitHub repository
+//   4. Fetches the Japanese from arcueid.date when the game has none of its own (japanese.js): the Windows game downloads it only when
+//      日本語 is chosen on its LANGUAGE tab, and the translator needs it from the start. About 57 MB the first time (a page shows how far it
+//      has got), then only what the site changes; without the network, what was fetched before is used.
+//   5. Keeps the tool up to date (updater.js): once the editor is up, it looks at the latest release of the app's GitHub repository
 //      (tool-files.json "repository"). Newer tool files are downloaded quietly and checked, and the app asks before restarting the editor
 //      with them ("Later": the next time it opens). A release that needs a newer app than this one (its "shell") is not taken: the app
 //      offers the releases page instead. Help → Check for updates asks at any time.
 // Nothing here writes anywhere but this app's own data folder (its settings, the tool's updates) and, through the editor, the translation's
-// folder. The game's files are only read. The only address it reaches beyond this computer is GitHub, for updates. Closing the window stops
-// the server.
+// folder. The game's files are only read. Beyond this computer it reaches only GitHub (updates) and arcueid.date (the Japanese). Closing the
+// window stops the server.
 //
 // For testing (unpackaged, npm start): --game=DIR (a game folder, a www, a Mac .app), --translations=DIR, --python=PATH (default: python3),
 // --tool=DIR (a tool tree with its bundled.json, in place of this checkout), --update-origin=http://127.0.0.1:PORT (a release's files
 // served on this computer: translator_manifest.py --release), --test-answer=restart|later (answers the update's question),
-// --user-data-dir=DIR (the app's own data there, not beside the copy you use).
+// --user-data-dir=DIR (the app's own data there, not beside the copy you use), --site-origin=http://127.0.0.1:PORT (the Japanese from a copy of
+// the site's update/ and assets/ on this computer).
 const { app, BrowserWindow, Menu, dialog, session, shell } = require("electron");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
 const { ToolUpdater, github, local } = require("./updater.js");
+const { Japanese, gameHasJapanese } = require("./japanese.js");
 const TOOL_LIST = require("./tool-files.json");
 
 const flag = (name) => { const a = process.argv.find((v) => v.startsWith(`--${name}=`)); return a ? a.slice(name.length + 3) : null; };
@@ -42,6 +47,7 @@ if (!app.isPackaged && flag("user-data-dir")) app.setPath("userData", path.resol
 const BUNDLED_PYTHON = path.join(process.resourcesPath || "", "python", process.platform === "win32" ? "python.exe" : "bin/python3");
 const PYTHON = flag("python") || (app.isPackaged && fs.existsSync(BUNDLED_PYTHON) ? BUNDLED_PYTHON : "python3");
 const SITE = "https://arcueid.date";
+const SITE_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(flag("site-origin") || "") ? flag("site-origin") : SITE;   // (the Japanese)
 const SETTINGS = () => path.join(app.getPath("userData"), "settings.json");
 const GAME_DATA = () => path.join(app.getPath("appData"), "Tsukihime");   // the game app's own data folder (its productName)
 
@@ -52,6 +58,7 @@ let currentOrigin = "";   // the editor's server, http://localhost:PORT
 const log = [];
 const note = (line) => { log.push(line); if (log.length > 200) log.shift(); if (TEST_ANSWER) console.log(line); };
 let place = null;   // the game's www and the translation folder the editor is open over
+let useJapanese = false;   // the Japanese fetched from the site goes to the server (the game has none of its own)
 let updater = null;   // updater.js, when the tool has a bundled.json (a built app, or --tool)
 
 function loadSettings() {
@@ -156,6 +163,7 @@ async function startServer(www, folder, back = null) {
   const apps = [];
   if (fs.existsSync(path.join(GAME_DATA(), "update", "state.json"))) apps.push("--app", GAME_DATA());
   apps.push("--app", www);
+  if (useJapanese) apps.push("--app", JAPANESE_DIR());   // (after the game's own: it gives only what they lack)
   // -I: nothing of this computer's Python settings; -X utf8: the console speaks UTF-8 whatever Windows' code page (a folder named in Spanish)
   const child = spawn(PYTHON, ["-I", "-X", "utf8", SERVER, String(port), ...apps, "--translations", folder], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
   server = child;
@@ -182,6 +190,8 @@ function stopServer() {
 // ---- the window --------------------------------------------------------------------------------------------------------------------------
 async function open(www, folder) {
   place = { www, folder };
+  makeWindow();
+  await fetchJapanese(www);
   let port;
   try {
     try {
@@ -203,6 +213,12 @@ async function open(www, folder) {
     return;
   }
   const origin = `http://localhost:${port}`;
+  currentOrigin = origin;
+  win.setTitle(`Tsukihime Translator — ${folder}`);
+  await win.loadURL(`${origin}/translator/`);
+  watchEditor();
+}
+function makeWindow() {
   if (!win) {
     // (a test run, --test-answer, keeps its window hidden: it is driven over the debugging port, not looked at)
     win = new BrowserWindow({ width: 1600, height: 1000, minWidth: 900, minHeight: 600, resizable: true, maximizable: true, title: "Tsukihime Translator", autoHideMenuBar: false,
@@ -223,11 +239,49 @@ async function open(www, folder) {
       if (r === 0) e.preventDefault();
     });
   }
-  currentOrigin = origin;
-  win.setTitle(`Tsukihime Translator — ${folder}`);
-  await win.loadURL(`${origin}/translator/`);
-  watchEditor();
 }
+
+// ---- the Japanese (japanese.js) ----------------------------------------------------------------------------------------------------------
+// Once a run, before the server starts: nothing when the game has its own Japanese; else the site is asked what its Japanese is, and the folder
+// brought to it. A download shows a page with its progress (the first time, about 57 MB); a site that cannot be reached leaves what is there.
+const JAPANESE_DIR = () => path.join(app.getPath("userData"), "japanese");
+let japanese = null, askedSite = false;
+async function fetchJapanese(www) {
+  if (gameHasJapanese(www, GAME_DATA())) { useJapanese = false; return; }
+  if (!japanese) {
+    const ses = session.fromPartition("site");   // (a session of its own, in memory, held to the site)
+    ses.webRequest.onBeforeRequest((d, done) => { const ok = d.url.startsWith(`${SITE_ORIGIN}/`); if (!ok) note(`japanese: refused ${d.url}`); done({ cancel: !ok }); });
+    japanese = new Japanese({ dir: JAPANESE_DIR(), origin: SITE_ORIGIN, fetch: (url, opts) => ses.fetch(url, opts) });
+  }
+  useJapanese = !!japanese.held();
+  if (askedSite) return;
+  askedSite = true;
+  let shown = false;
+  const mb = (n) => (n / 1048576).toFixed(n < 10485760 ? 1 : 0);
+  const progress = ({ done, total }) => {
+    if (!total || !win || win.isDestroyed()) return;
+    if (!shown) { shown = true; win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(FETCHING_PAGE)}`).catch(() => null); }
+    win.setProgressBar(done / total);
+    win.webContents.executeJavaScript(`window.show && show(${done}, ${total}, ${JSON.stringify(`${mb(done)} of ${mb(total)} MB`)})`).catch(() => null);
+  };
+  try {
+    const r = await japanese.refresh(progress);
+    note(r.changed ? `japanese: ${r.fetched} files (${mb(r.bytes)} MB) from ${SITE_ORIGIN}` : "japanese: as the site has it");
+  } catch (e) {
+    note(`japanese: ${e.message}${japanese.held() ? " (the copy fetched before is used)" : " (none yet: the next start tries again)"}`);
+  }
+  if (win && !win.isDestroyed()) win.setProgressBar(-1);
+  useJapanese = !!japanese.held();
+}
+const FETCHING_PAGE = `<!doctype html><meta charset="utf-8"><title>Tsukihime Translator</title><style>
+:root { color-scheme: light dark; } body { margin: 0; height: 100vh; display: grid; place-items: center; font: 15px/1.5 system-ui, "Segoe UI", sans-serif;
+background: #f6f5f2; color: #1d1c1a; } @media (prefers-color-scheme: dark) { body { background: #18191b; color: #e8e6e1; } .bar { background: #44413c !important; } }
+.box { width: min(420px, 90vw); } .bar { height: 8px; border-radius: 4px; background: #d8d4cc; overflow: hidden; margin: 14px 0 8px; }
+.bar i { display: block; height: 100%; width: 0; background: #2f5fa7; } .soft { opacity: .7; }</style>
+<div class="box"><b>Getting the Japanese</b><p class="soft">The Japanese column, the checks against it and the page in Japanese need the game's
+Japanese, which the game downloads only when 日本語 is chosen. It is fetched from arcueid.date once; later only what changes.</p>
+<div class="bar"><i id="i"></i></div><div id="n" class="soft"></div></div>
+<script>function show(d, t, s) { document.getElementById("i").style.width = (100 * d / t) + "%"; document.getElementById("n").textContent = s; }</script>`;
 
 // ---- the tool's updates (updater.js) -----------------------------------------------------------------------------------------------------
 // The editor has come up (window.translator.ready): the tool in use is confirmed, and the first time in this run the latest release is looked at.

@@ -33,10 +33,10 @@ jobs:
           python-version: '3.13'
       - name: Test
         run: node --test web-dev/tests/*.test.mjs
-      - name: The app's version from the tag (v2026.11.18 -> 2026.11.18)
+      - name: The app's version from the tag (v2026.11.18 -> 2026.11.18; a second one that day, v2026.11.18-2 -> 2026.11.18-2)
         run: |
           v="${GITHUB_REF_NAME#v}"
-          if [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then (cd web-dev/translator-app && npm pkg set version="$v"); fi
+          if [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$ ]]; then (cd web-dev/translator-app && npm pkg set version="$v"); fi
       - name: Build the Windows app
         run: TOOL_TIME="$(git log -1 --format=%ct)" web-dev/translator-app/build.sh
       - name: The tool's update

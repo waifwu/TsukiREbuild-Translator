@@ -6,6 +6,8 @@ The translator tool of the Tsukihime web port ([arcueid.date](https://arcueid.da
 
 The latest version, as a zip. Every version and what changed in it: [Releases](https://github.com/waifwu/TsukiREbuild-Translator/releases).
 
+**Fully compatible with deepLuna.** deepLuna's readable files go in and out through the editor's Exchange panel, with deepLuna's italics codes and its 55-letter rows kept, and a whole deepLuna project imports with `web-dev/tools/exchange.py`.
+
 ## Download
 
 1. Have the game: the Windows build from arcueid.date (DOWNLOAD), unzipped into a folder of its own (`Tsukihime.exe`, with `resources\www` beside it).
@@ -15,7 +17,7 @@ The latest version, as a zip. Every version and what changed in it: [Releases](h
 4. The first time, it asks for your translation's folder. An empty folder starts a new translation.
 5. **Help** in the editor's top bar explains the rest: five steps to a first line, the window, the keys and the marks.
 
-The Japanese column appears once the game has the Japanese: choose 日本語 once on the game's LANGUAGE tab, then open the translator again.
+The first time it opens, the app fetches the game's Japanese from arcueid.date (about 57 MB, once; the Windows game itself downloads it only when 日本語 is chosen). The Japanese column, the checks against it and the page shown in Japanese use it. Later starts fetch only what the site has changed, and without the network the copy fetched before is used.
 
 ## Updates
 
@@ -25,7 +27,7 @@ Once the editor is open, the app looks at this repository's latest release.
 - **When the release needs a newer app** (a new Electron or Python, or a change to the app around the tool), the app does not update itself. It offers this releases page instead.
 - **Help → Check for updates** looks again at any time. **Help → About** says which version is running.
 
-Your translation folder is never touched by an update.
+Your translation folder is never touched by an update. Beyond your computer, the app reaches only GitHub (updates) and arcueid.date (the Japanese).
 
 ## What is in it
 
@@ -46,6 +48,8 @@ Push a tag:
 git tag v2026.11.18
 git push origin v2026.11.18
 ```
+
+A second release on the same day: `v2026.11.18-2`.
 
 The workflow (`.github/workflows/release.yml`):
 

@@ -9,7 +9,9 @@ folders, the first that has a file giving it:
     `Tsukihime.exe` on Windows and Linux; a Mac `.app` may be named itself;
   - the desktop app's data folder (`~/Library/Application Support/Tsukihime`, `%APPDATA%\\Tsukihime`, `~/.config/Tsukihime`): the update it plays
     (`update/state.json` names it; `update/<id>/files` holds what it changed, and the languages downloaded since, laid out as `www` is). Name it
-    before the app's `www`, as the app reads it first (web-dev/desktop/updater.js).
+    before the app's `www`, as the app reads it first (web-dev/desktop/updater.js);
+  - a language the translator app fetched from the site (web-dev/translator-app/japanese.js): `assets/` with `fetched.json` beside it. Named
+    after the game's own folders, it gives only what they lack.
 
 The apps keep a downloaded language's small files in packs (`<lang>/pack/index.json` and `<lang>-<hash>.pack`, web-dev/tools/build_langpacks.py): a
 file that is not there by itself is read out of its pack, so `ja/text.json` is found in an app that has Japanese.
@@ -43,12 +45,15 @@ def resolve(folder):
             # an app that never took an update (or gave one up) plays its own files: nothing here to read, and that is no error
             return None, None, f"data folder {folder}: no update in use (skipped)"
         return files, os.path.join(files, "assets"), f"update {cur} of {folder}"
+    if _isfile(os.path.join(folder, "fetched.json")) and os.path.isdir(os.path.join(folder, "assets")):
+        # (game files only, no page: page_file finds nothing here and goes on to the next folder)
+        return folder, os.path.join(folder, "assets"), f"fetched from the site {folder}"
     if _isfile(os.path.join(folder, "app", "index.html")) and os.path.isdir(os.path.join(folder, "assets")):
         return os.path.join(folder, "app"), os.path.join(folder, "assets"), f"web folder {folder}"
     if _isfile(os.path.join(folder, "index.html")) and os.path.isdir(os.path.join(folder, "assets")):
         return folder, os.path.join(folder, "assets"), f"app files {folder}"
-    raise ValueError(f"{folder}: neither a web/ folder (app/ and assets/), an app's www (index.html and assets/), a Mac .app nor the desktop "
-                     f"app's data folder (update/state.json)")
+    raise ValueError(f"{folder}: neither a web/ folder (app/ and assets/), an app's www (index.html and assets/), a Mac .app, the desktop "
+                     f"app's data folder (update/state.json) nor a language fetched from the site (fetched.json and assets/)")
 
 
 class GameFiles:

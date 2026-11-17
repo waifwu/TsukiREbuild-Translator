@@ -21,7 +21,7 @@
     "productName": "Tsukihime Translator",
     "artifactName": "TsukihimeTranslator-${os}-${arch}.${ext}",
     "directories": { "output": "out", "buildResources": "build" },
-    "files": ["main.js", "updater.js", "tool-files.json", "package.json"],
+    "files": ["main.js", "updater.js", "japanese.js", "tool-files.json", "package.json"],
     "extraResources": [
       { "from": "../../web/server.py", "to": "tool/web/server.py" },
       { "from": "../tools", "to": "tool/web-dev/tools", "filter": ["dev_server.py", "gamefiles.py", "line_map.py", "translations.py", "build_layer.py", "exchange.py", "build_pt.py", "story-font-cover.json"] },
