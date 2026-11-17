@@ -19,7 +19,8 @@ concurrency:
 
 jobs:
   release:
-    runs-on: macos-latest
+    # (Linux: electron-builder edits the Windows .exe with resedit, no Wine needed; macOS runners were too scarce to start, 2026-11-17)
+    runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
       - name: Check out the tagged commit
