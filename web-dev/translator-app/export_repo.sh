@@ -5,7 +5,7 @@
 #   - the tool's files (tool-files.json) and the one that describes them for updates (translator_manifest.py);
 #   - the app (main.js, updater.js, japanese.js, build.sh, package.json and its lock, icons, README.md);
 #   - the tests of the tool and the app, and web/app/js/languages.js, which they use as an app's language table (the port's code);
-#   - the repository's own README.md, .gitignore and release workflow (repo/ here).
+#   - the repository's own README.md (and its picture, docs/), .gitignore and release workflow (repo/ here).
 # Nothing of the game goes: no assets, no game text (the tests use invented lines). DEST's .git is left alone; files of the tool no longer
 # listed are removed from DEST only where this script put them before (web-dev/translator, web-dev/fit, web-dev/tests, web-dev/tools).
 set -euo pipefail
@@ -35,6 +35,8 @@ for f in "${files[@]}"; do
     cp -p "$root/$f" "$dest/$f"
 done
 cp -p "$here/repo/README.md" "$here/repo/.gitignore" "$dest/"
+mkdir -p "$dest/docs"
+cp -p "$here"/repo/docs/* "$dest/docs/"
 mkdir -p "$dest/.github/workflows"
 cp -p "$here/repo/.github/workflows/release.yml" "$dest/.github/workflows/"
 chmod +x "$dest/web-dev/translator-app/build.sh" "$dest/web-dev/translator-app/export_repo.sh"

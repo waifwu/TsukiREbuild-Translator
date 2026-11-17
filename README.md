@@ -2,15 +2,21 @@
 
 The translator tool of the Tsukihime web port ([arcueid.date](https://arcueid.date), [TsukiREbuild](https://github.com/waifwu/TsukiREbuild)) as a Windows app. It runs on top of the game's PC build that you have installed. It reads the game's files and never changes them, and keeps your translation in a folder of your own, usually a git repository of your own.
 
+> **Needs the game.** The translator runs on top of the Tsukihime web port's Windows app ([TsukiREbuild](https://github.com/waifwu/TsukiREbuild)): download it from [arcueid.date](https://arcueid.date) (DOWNLOAD, [Windows](https://arcueid.date/desktop/Tsukihime-win-x64.zip)) and unzip it first. The translator reads the game's own files and does not work without them.
+
 [![Download for Windows (64-bit)](https://img.shields.io/badge/Download-Windows%20(64--bit)-2f5fa7?style=for-the-badge)](https://github.com/waifwu/TsukiREbuild-Translator/releases/latest/download/TsukihimeTranslator-win-x64.zip)
 
 The latest version, as a zip. Every version and what changed in it: [Releases](https://github.com/waifwu/TsukiREbuild-Translator/releases).
 
 **Fully compatible with deepLuna.** deepLuna's readable files go in and out through the editor's Exchange panel, with deepLuna's italics codes and its 55-letter rows kept, and a whole deepLuna project imports with `web-dev/tools/exchange.py`.
 
+![The editor: a scene's lines beside the Japanese and Tsukihimates' English, the translation's edit box with the game's marks, and on the right the page laid out in the game's own text box, with the same page in Japanese below it](docs/editor.png)
+
+*The editor over HanabiWorks' Portuguese translation (Ciel, day 1). On the right: the page as the game's own text box lays it out as you type, and the same page in Japanese.*
+
 ## Download
 
-1. Have the game: the Windows build from arcueid.date (DOWNLOAD), unzipped into a folder of its own (`Tsukihime.exe`, with `resources\www` beside it).
+1. Have the game (required): the Windows build from [arcueid.date](https://arcueid.date) (DOWNLOAD), unzipped into a folder of its own (`Tsukihime.exe`, with `resources\www` beside it).
 2. Download `TsukihimeTranslator-win-x64.zip` (the button above, or the [latest release](https://github.com/waifwu/TsukiREbuild-Translator/releases/latest)), unzip it anywhere (next to the game is fine), and run `Tsukihime Translator.exe`.
    - It is not signed, as the game is not: Windows shows its SmartScreen notice. Choose More info, then Run anyway.
 3. It finds the game by itself, or asks where `Tsukihime.exe` is.
