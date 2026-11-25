@@ -101,13 +101,42 @@ test("deepLuna's readable format out and back: the faces as its codes; what it c
     const out = join(w.dir, "dl");
     let r = run("export", "deepluna", w.tl, out, "--app", w.www);
     assert.match(r.stdout, /1 lines cannot be read back .*: 1/);
-    assert.equal(readFileSync(join(out, "01_00_ARC01_1.txt"), "utf8").split("\n").slice(0, 5).join("\n"),
-      "// en: The moon is out.\n// ja: 月が出ている。\n[offset:0]{\nLa %{i}lune%{/i}^est là.\n}");
+    // deepLuna's own block: nothing between blocks (its reader stops there), "-- Page P, Offset N." first, then the Japanese, as it writes them
+    assert.match(readFileSync(join(out, "01_00_ARC01_1.txt"), "utf8"),
+      /^\[offset:0\]\{\n-- Page (\d+|\?), Offset 0\.\n-- 月が出ている。\n-- en: The moon is out\.\nLa %\{i\}lune%\{\/i\}\^est là\.\n\}\n\n\[offset:1\]\{\n/);
     const back = join(w.dir, "back");
     mkdirSync(back);
     r = run("import", "deepluna", out, back, "--app", w.www);
     assert.match(r.stdout, /placed 1 lines/);
     assert.equal(rows(back)[0].text, `La ${I("lune")}^est là.`);
+  } finally { rmSync(w.dir, { recursive: true, force: true }); }
+});
+
+test("deepLuna's own export in: an [sha:H] block goes on the line its \"-- Page P, Offset N.\" names, when its Japanese is that line's", { skip: !python && "no python3" }, () => {
+  const w = world();
+  try {
+    const h = (c) => c.repeat(40);
+    // as deepLuna writes a scene (its newer copies keep a row's \r, which a Windows file makes \r\r\n), in CRLF
+    const file = join(w.dir, "01_00_ARC01_1.txt");
+    writeFileSync(file, [
+      `[sha:${h("a")}]{`, "-- Page 3, Offset 0.", "-- 月が出ている。", "// a note of the translator's", "La lune est là.", "}",
+      `[sha:${h("b")}]{`, "-- Page 3, Offset 1. Glued.", "-- 猫が\r", "-- 　寝ている。", "Un chat dort.", "}",
+      `[sha:${h("c")}]{`, "-- Page 4, Offset 2.", "-- 違う行だ。", "Sur le toit.", "}",                    // its Japanese is not line 2's
+      `[sha:${h("d")}]{`, "Rentrer.", "}",                                                                   // no line number in it
+      `[sha:${h("e")}]{`, "-- Page 4, Offset 1.", "-- 猫が寝ている。", "Un félin dort.", "}",               // line 1 again, otherwise
+      `[offset:4]{`, "-- Page 1, Offset 4.", "-- こんばんは。", "-- TRANSLATION HERE", "}",                   // nothing in it
+      `[offset:3]{`, "-- Page 2, Offset 3.", "-- en:  Go home.", " Rentrer.", "}", ""].join("\r\n"));  // no Japanese under it (an export made without)
+    let r = run("import", "deepluna", file, w.tl, "--app", w.www);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /placed 3 lines in 1 scene files; 0 were so already; 0 kept as they were; 3 not placed/);
+    assert.match(r.stdout, /\[sha:c+\]: line 2's Japanese is not the one in its comment/);
+    assert.match(r.stdout, /\[sha:d+\]: no line number in it .*no deepluna_db\.json/);
+    assert.match(r.stdout, /\[sha:e+\]: line 1 is in 01_00_ARC01_1\.txt \[sha:b+\] too, with another text: that one is taken/);
+    const got = rows(w.tl);
+    assert.equal(got[0].text, "La lune est là.");
+    assert.equal(got[1].text, "Un chat dort.");
+    assert.equal(got[2], undefined);
+    assert.equal(got[3].text, " Rentrer.");
   } finally { rmSync(w.dir, { recursive: true, force: true }); }
 });
 

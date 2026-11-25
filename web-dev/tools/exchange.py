@@ -13,8 +13,9 @@ the folder is translated from, language.json "from", else Japanese) and the Engl
             the note as a translator comment (#), a draft "fuzzy"
   xliff     XLIFF 1.2, a <file> a scene, a <trans-unit id="<id>"> a line: <source> and <target state=...>, the note and the English as <note>s;
             italics and the patch's other faces as <g ctype="italic"> (x-mirrored, x-mirrored-italic, x-archaic, x-upside-down)
-  deepluna  deepLuna's readable format, a <scene>.txt a scene: [offset:<id>]{ the line } with the codes deepLuna writes (%{i} ... %{/i}), the
-            English and the source as // comments before each block
+  deepluna  deepLuna's readable format, a <scene>.txt a scene, in blocks as deepLuna writes them, so that deepLuna reads them back:
+            [offset:<id>]{ "-- Page <the scene's page>, Offset <id>.", the Japanese, "-- en: " the English (and the source), the line }, with
+            the codes deepLuna writes (%{i} ... %{/i})
 In CSV and PO the faces travel as <i>...</i> (and <m>, <mi>, <a>, <u>, <e/>; any other private-use letter as <pua XXXX/>), which no line of the
 game has: read back, they are the same letters. The text box's own marks (@g, [ber00], ^, <base|reading>) are left as they are.
 
@@ -22,7 +23,10 @@ Import reads such a file back, or another tool's, and lays every line on its lin
   csv       the columns id and text (others: status, note), named in the first row
   po        msgctxt "...#<id>"; an entry without one is laid on every line whose source (or English) is its msgid
   xliff     <trans-unit id="<id>"> (1.2) or <unit id> / <segment> (2.0); the state gives the status
-  deepluna  a readable-format file or folder ([offset:N]{...}; [sha:H]{...} with --db deepluna_db.json), or a deepLuna project folder
+  deepluna  a readable-format file or folder: a block on the line its first row names, "-- Page P, Offset N." (deepLuna writes it in every
+            block, an [sha:H] one too), if the Japanese deepLuna writes under it is that line's; [offset:N]{...} on N; an [sha:H]{...} with no
+            such row on the lines with that hash in --db deepluna_db.json. A line two blocks name with other texts takes the first; a block
+            with no text (deepLuna's "-- TRANSLATION HERE") is passed over. Or a deepLuna project folder
             (deepluna_db.json and scripts/TL/, the legacy format), read by build_pt.py's rules: control codes applied, and with the project's
             database deepLuna's 55-cell row breaks (language.json "breaks": "deepluna"); --revision pt also tries a file named after a scene
             plus "pt" as another copy of it, the one that sits best kept (build_pt.py: HanabiWorks' revised scenes)
@@ -311,6 +315,7 @@ def export(fmt, game, folder, out, scenes=None, every=False, source=None):
     elif fmt == "deepluna":
         os.makedirs(out, exist_ok=True)
         by_scene, lost = {}, []
+        ja = [reference(x) for x in game.text("ja")] if game.text("ja") else None
         for scene, i, row in lines:
             by_scene.setdefault(scene, []).append((i, row))
         for scene, items in by_scene.items():
@@ -320,10 +325,15 @@ def export(fmt, game, folder, out, scenes=None, every=False, source=None):
                 # (the readable format drops what follows -- or //, and a line of nothing but spaces: such a line cannot be written in it)
                 if row and (re.search(r"--|//", coded) or not coded.strip()):
                     lost.append(i)
-                parts.append(f"// en: {to_codes(english[i], 'deepluna')}")
-                if source != "en":
-                    parts.append(f"// {source}: {to_codes(src[i])}")
-                parts.append(f"[offset:{i}]{{\n{coded}\n}}\n")
+                # A block as deepLuna writes one, so that deepLuna reads it back (it takes nothing between blocks, and its newer copies
+                # want the "-- Page P, Offset N." row in each): the line's Japanese, the English and the source as "--" rows inside.
+                head = [f"-- Page {game.page.get(i) or '?'}, Offset {i}."]
+                if ja:
+                    head.append(f"-- {ja[i]}".replace("\n", " "))
+                head.append(f"-- en: {to_codes(english[i], 'deepluna')}")
+                if source not in ("en", "ja"):
+                    head.append(f"-- {source}: {to_codes(src[i])}")
+                parts.append(f"[offset:{i}]{{\n" + "\n".join(head) + f"\n{coded}\n}}\n")
             write_file(os.path.join(out, f"{scene}.txt"), "\n".join(parts))
         if lost:
             print(f"{len(lost)} lines cannot be read back from deepLuna's readable format as they are (it takes -- and // for comments, and drops a "
@@ -487,13 +497,23 @@ def read_xliff(path):
     return out
 
 
+def same_japanese(said, port):
+    """A deepLuna block's copy of the Japanese against the port's line, whitespace, the engine's own marks and ruby readings aside (on
+    HanabiWorks' copy of deepLuna's export, every one of 43,960 blocks agrees with the port's line at the number its comment names)."""
+    bare = lambda s: re.sub(r"[\s-]", "", re.sub(r"<([^|<>]*)\|[^<>]*>", r"\1", s or ""))
+    return bare(said) == bare(port)
+
+
 def read_deepluna(path, game, db=None, revision=None):
-    """A deepLuna project folder (its lines laid out by build_pt.py's rules, row breaks and all), or readable-format files."""
+    """A deepLuna project folder (its lines laid out by build_pt.py's rules, row breaks and all), or readable-format files. A block goes on
+    the line its first row names, "-- Page P, Offset N." (deepLuna writes it in every block, an [sha:H] one too), when the Japanese in its
+    comment is that line's; an [offset:N] on N; an [sha:H] with no such row on the lines with that hash in the project's database (--db), but
+    not where a block names the line itself. A line two blocks name with other texts takes the first. Returns (items, notes, breaks, not placed)."""
     bp = _tool("build_pt")
     if os.path.isdir(path) and os.path.isfile(os.path.join(path, "deepluna_db.json")) and os.path.isdir(os.path.join(path, "scripts", "TL")):
         _, english, scenes, files, tl, out, notes = bp.read_project(game.root, path, revision, None if game.root else game.read)
         laid = [("project", o, None, out[o], None, None) for o in sorted(tl) if 0 <= o < len(out)]
-        return laid, notes, "deepluna"
+        return laid, notes, "deepluna", []
     paths = [path] if os.path.isfile(path) else sorted(os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs if f.endswith(".txt"))
     by_hash, scenes = {}, None
     if db:
@@ -501,24 +521,47 @@ def read_deepluna(path, game, db=None, revision=None):
         for v in scenes.values():
             for c in v:
                 by_hash.setdefault(c["jp_hash"], []).append(c["offset"])
-    out, notes, written = [], [], {}
+    ja = game.text("ja")
+    blocks, notes, unplaced, unchecked = [], [], [], 0
     for p in paths:
-        for kind, key, text in bp.readable_blocks(p):
+        for kind, key, text, said, japanese in bp.readable_entries(p):
             if not text:
                 continue
-            ids = [int(key)] if kind == "offset" else by_hash.get(key, [])
-            if not ids:
-                notes.append(f"{os.path.basename(p)} [{kind}:{key}]: no line has it" + ("" if db else " (give the project's deepluna_db.json with --db)"))
+            where = f"{os.path.basename(p)} [{kind}:{key}]"
+            if kind == "offset" or said is not None:
+                ids, by_line = [int(key) if kind == "offset" else said], True
+                if japanese is not None and ja is None:
+                    unchecked += 1
+                elif japanese is not None and ids[0] < len(ja) and not same_japanese(japanese, ja[ids[0]]):
+                    unplaced.append((where, f"line {ids[0]}'s Japanese is not the one in its comment (a file numbered otherwise?)"))
+                    continue
+            else:
+                ids, by_line = [o for o in by_hash.get(key, []) if o in game.order], False
+                if not ids:
+                    unplaced.append((where, "no line number in it (deepLuna begins a block with \"-- Page P, Offset N.\"), and "
+                                     + ("no line the scripts show has its hash in deepluna_db.json" if db else
+                                        "no deepluna_db.json to look its hash up in (exchange.py --db)")))
+                    continue
             try:
                 coded = bp.apply_codes(text.replace("\n", ""), pua=True)
             except bp.LineError as e:
-                notes.append(f"{os.path.basename(p)} [{kind}:{key}]: {e}")
+                unplaced.append((where, str(e)))
                 continue
-            for i in ids:
-                written[i] = text.replace("\n", "")
-                out.append((f"{os.path.basename(p)} [{kind}:{key}]", i, None, coded, None, None))
+            blocks.append((not by_line, where, ids, coded, text.replace("\n", "")))
+    if unchecked:
+        notes.append(f"{unchecked} blocks' line numbers were not checked against the Japanese in their comments: the game here has no Japanese text")
+    out, written, taken = [], {}, {}
+    for by_hash_only, where, ids, coded, raw in sorted(blocks, key=lambda b: b[0]):   # (the blocks that name their line first)
+        for i in ids:
+            if i in taken:
+                if not by_hash_only and taken[i][1] != coded:
+                    unplaced.append((where, f"line {i} is in {taken[i][0]} too, with another text: that one is taken"))
+                continue
+            taken[i] = (where, coded)
+            written[i] = raw
+            out.append((where, i, None, coded, None, None))
     if scenes is None:
-        return out, notes, "none"
+        return out, notes, "none", unplaced
     # with the project's database, the rows laid out as deepLuna lays them (build_pt.py lay_out): its 55-cell breaks, glued lines on one row
     laid = {}
     for scene, cmds in scenes.items():
@@ -532,7 +575,7 @@ def read_deepluna(path, game, db=None, revision=None):
             o = c["offset"]
             if c.get("is_choice") and o in laid and english[o].startswith(" ") and not laid[o].startswith(" "):
                 laid[o] = " " + laid[o]
-    return [(w, i, None, laid.get(i, t), st, n) for w, i, _, t, st, n in out], notes, "deepluna"
+    return [(w, i, None, laid.get(i, t), st, n) for w, i, _, t, st, n in out], notes, "deepluna", unplaced
 
 
 def mrg_lines(data):
@@ -597,7 +640,7 @@ def normalize(s):
 def import_(fmt, src, folder, game, status="draft", overwrite=False, dry=False, db=None, revision=None, say=print):
     """Lay a file's lines into the translations folder. Returns the report: {placed, same, kept, unplaced: [(where, why)], notes}."""
     meta = language(folder)
-    notes = []
+    notes, unplaced = [], []
     breaks = None
     if fmt == "csv":
         items = read_csv(src)
@@ -606,7 +649,7 @@ def import_(fmt, src, folder, game, status="draft", overwrite=False, dry=False, 
     elif fmt == "xliff":
         items = read_xliff(src)
     elif fmt == "deepluna":
-        items, notes, breaks = read_deepluna(src, game, db, revision)
+        items, notes, breaks, unplaced = read_deepluna(src, game, db, revision)
     elif fmt in WHOLE:
         items, notes = read_whole(src, fmt, game)
     else:
@@ -619,7 +662,7 @@ def import_(fmt, src, folder, game, status="draft", overwrite=False, dry=False, 
             for i in game.order:
                 by_source.setdefault(normalize(t[i]), set()).add(i)
     have = rows_of(folder)
-    report = {"placed": 0, "same": 0, "kept": [], "unplaced": [], "notes": notes, "files": set()}
+    report = {"placed": 0, "same": 0, "kept": [], "unplaced": list(unplaced), "notes": notes, "files": set()}
     changes = {}
     for where, i, source, text, st, note in items:
         if fmt in ("csv", "po"):

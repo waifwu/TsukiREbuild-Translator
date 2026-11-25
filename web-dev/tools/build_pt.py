@@ -374,14 +374,39 @@ def by_page(scene, groups, pages, english):
 
 def readable_blocks(path):
     """deepLuna's readable format: [sha:H]{ ... } or [offset:N]{ ... }; '--' starts a machine comment, '//' a human one."""
+    for kind, key, text, _, _ in readable_entries(path):
+        yield kind, key, text
+
+
+HEADER = re.compile(r"--\s*Page\b.*?\bOffset\s+(\d+)")
+NOT_JAPANESE = re.compile(r"--\s*(TRANSLATION HERE\s*$|[a-z]{2,}(-[A-Za-z0-9]+)?:(\s|$))")   # deepLuna's empty mark; "-- en: ..." (exchange.py's)
+
+
+def readable_entries(path):
+    """readable_blocks, with what the block's machine comments say: (kind, key, text, said, japanese). deepLuna begins every block, an
+    [sha:H] one too, with "-- Page P, Offset N." and then the line's Japanese, a "-- " row each: said is that N, japanese those rows joined
+    (None, None when the block's first row is no such header; japanese None when no Japanese row follows it). A row of a language code ("-- en: ...") or deepLuna's "-- TRANSLATION HERE"
+    is not the Japanese, and the Japanese ends at the first row that is no machine comment."""
     text = open(path, encoding="utf-8").read()
     for m in re.finditer(r"\[(sha|offset):([0-9a-f]+)\]\s*\{(.*?)\n\}", text, re.S):
         kept = []
-        for line in m.group(3).split("\n"):
+        rows = m.group(3).split("\n")
+        for line in rows:
             line = re.split(r"--|//", line)[0].rstrip()
             if line:
                 kept.append(line)
-        yield m.group(1), m.group(2), "\n".join(kept)
+        said = japanese = None
+        filled = [r.strip() for r in rows if r.strip()]
+        head = HEADER.match(filled[0]) if filled else None
+        if head:
+            said, jp = int(head.group(1)), []
+            for r in filled[1:]:
+                if not r.startswith("--"):
+                    break
+                if not NOT_JAPANESE.match(r):
+                    jp.append(r[2:])
+            japanese = "".join(jp) if jp else None   # (no Japanese rows: nothing to check, as exchange.py writes a block over a game without it)
+        yield m.group(1), m.group(2), "\n".join(kept), said, japanese
 
 
 # --- main -------------------------------------------------------------------------------------------------------------
